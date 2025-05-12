@@ -3,6 +3,9 @@ package org.example.nanorx.core;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.ArrayList;
+import java.util.List;
+
 
 class ObservableTest {
 
@@ -69,4 +72,31 @@ class ObservableTest {
             this.isCompleted = true;
         }
     }
+
+    @Test
+    void testMapOperator() {
+        Observable<Integer> source = Observable.create(observer -> {
+            observer.onNext(1);
+            observer.onNext(2);
+            observer.onNext(3);
+            observer.onComplete();
+        });
+
+        Observable<String> mapped = source.map(String::valueOf);
+
+        List<String> results = new ArrayList<>();
+        TestObserver<String> testObserver = new TestObserver<>() {
+            @Override
+            public void onNext(String item) {
+                results.add(item);
+            }
+        };
+
+        mapped.subscribe(testObserver);
+
+        assertEquals(List.of("1", "2", "3"), results);
+        assertTrue(testObserver.isCompleted);
+        assertNull(testObserver.error);
+    }
+
 }
