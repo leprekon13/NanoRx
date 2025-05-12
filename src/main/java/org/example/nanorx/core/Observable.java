@@ -1,6 +1,7 @@
 package org.example.nanorx.core;
 
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class Observable<T> {
     private final OnSubscribe<T> onSubscribe;
@@ -29,6 +30,33 @@ public class Observable<T> {
                         try {
                             R result = mapper.apply(item);
                             observer.onNext(result);
+                        } catch (Throwable t) {
+                            observer.onError(t);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable throwable) {
+                        observer.onError(throwable);
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        observer.onComplete();
+                    }
+                })
+        );
+    }
+
+    public Observable<T> filter(Predicate<? super T> predicate) {
+        return new Observable<>(observer ->
+                this.subscribe(new Observer<T>() {
+                    @Override
+                    public void onNext(T item) {
+                        try {
+                            if (predicate.test(item)) {
+                                observer.onNext(item);
+                            }
                         } catch (Throwable t) {
                             observer.onError(t);
                         }
