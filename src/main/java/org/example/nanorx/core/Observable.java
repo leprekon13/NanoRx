@@ -14,13 +14,39 @@ public class Observable<T> {
         return new Observable<>(onSubscribe);
     }
 
-    public void subscribe(Observer<? super T> observer) {
-        try {
-            onSubscribe.subscribe(observer);
-        } catch (Throwable t) {
-            observer.onError(t);
-        }
+public void subscribe(Observer<? super T> observer) {
+    try {
+        onSubscribe.subscribe(new Observer<>() {
+            private boolean terminated = false; // Если true, подписка завершена.
+
+            @Override
+            public void onNext(T item) {
+                if (terminated) return; // Не обрабатывать элементы после завершения.
+                try {
+                    observer.onNext(item);
+                } catch (Throwable t) {
+                    onError(t); // Завершить подписку при ошибке.
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                if (terminated) return;
+                terminated = true; // Завершить подписку с ошибкой.
+                observer.onError(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                if (terminated) return;
+                terminated = true; // Завершить подписку успешно.
+                observer.onComplete();
+            }
+        });
+    } catch (Throwable t) {
+        observer.onError(t); // Ловим любые ошибки в процессе подписки.
     }
+}
 
     public <R> Observable<R> map(Function<? super T, ? extends R> mapper) {
         return new Observable<>(observer ->

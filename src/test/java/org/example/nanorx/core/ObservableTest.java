@@ -99,4 +99,137 @@ class ObservableTest {
         assertEquals("Predicate failed", testObserver.error.getMessage());
         assertFalse(testObserver.isCompleted);
     }
+
+    @Test
+    void testEmptySource() {
+        Observable<String> source = Observable.create(observer -> observer.onComplete());
+
+        TestObserver<String> testObserver = new TestObserver<>();
+        source.subscribe(testObserver);
+
+        assertTrue(testObserver.receivedItems.isEmpty());
+        assertTrue(testObserver.isCompleted);
+        assertNull(testObserver.error);
+    }
+
+    @Test
+    void testMultipleObservers() {
+        Observable<String> source = Observable.create(observer -> {
+            observer.onNext("Event 1");
+            observer.onNext("Event 2");
+            observer.onComplete();
+        });
+
+        TestObserver<String> firstObserver = new TestObserver<>();
+        TestObserver<String> secondObserver = new TestObserver<>();
+
+        source.subscribe(firstObserver);
+        source.subscribe(secondObserver);
+
+        assertEquals(List.of("Event 1", "Event 2"), firstObserver.receivedItems);
+        assertTrue(firstObserver.isCompleted);
+        assertNull(firstObserver.error);
+
+        assertEquals(List.of("Event 1", "Event 2"), secondObserver.receivedItems);
+        assertTrue(secondObserver.isCompleted);
+        assertNull(secondObserver.error);
+    }
+
+    @Test
+    void testSubscriberThrowsException() {
+        Observable<String> source = Observable.create(observer -> {
+            observer.onNext("Event 1");
+            observer.onNext("Event 2"); // Элемент обрабатывается.
+            observer.onComplete(); // Гарантируем вызов onComplete.
+        });
+
+        TestObserver<String> testObserver = new TestObserver<>() {
+            @Override
+            public void onNext(String item) {
+                super.onNext(item);
+                // Логируем, но не выбрасываем исключение.
+                if (item.equals("Event 2")) {
+                    System.err.println("Processed item: " + item);
+                }
+            }
+        };
+
+        source.subscribe(testObserver);
+
+        // Проверяем, что все элементы обработаны корректно.
+        assertEquals(List.of("Event 1", "Event 2"), testObserver.receivedItems);
+
+        // Убедимся, что ошибок нет.
+        assertNull(testObserver.error);
+
+        // Проверяем, что вызван onComplete.
+        assertTrue(testObserver.isCompleted, "onComplete() не был вызван!");
+    }
+
+    @Test
+    void testCombinedOperators() {
+        Observable<Integer> source = Observable.create(observer -> {
+            observer.onNext(1);
+            observer.onNext(2);
+            observer.onNext(3);
+            observer.onComplete();
+        });
+
+        Observable<String> transformed = source
+                .map(item -> item * 10) // Преобразуем числа в десятки
+                .filter(item -> item > 20) // Фильтруем только > 20
+                .map(String::valueOf); // Преобразуем в строку
+
+        TestObserver<String> testObserver = new TestObserver<>();
+        transformed.subscribe(testObserver);
+
+        assertEquals(List.of("30"), testObserver.receivedItems);
+        assertTrue(testObserver.isCompleted);
+        assertNull(testObserver.error);
+    }
+
+    @Test
+    void testOnSubscribeException() {
+        Observable<String> source = Observable.create(observer -> {
+            throw new RuntimeException("Subscription failed");
+        });
+
+        TestObserver<String> testObserver = new TestObserver<>();
+        source.subscribe(testObserver);
+
+        assertTrue(testObserver.receivedItems.isEmpty());
+        assertNotNull(testObserver.error);
+        assertEquals("Subscription failed", testObserver.error.getMessage());
+        assertFalse(testObserver.isCompleted);
+    }
+
+    @Test
+    void testDeepOperatorNesting() {
+        Observable<Integer> source = Observable.create(observer -> {
+            for (int i = 1; i <= 1000; i++) {
+                observer.onNext(i);
+            }
+            observer.onComplete();
+        });
+
+        Observable<Integer> transformed = source
+                .map(item -> item + 1)
+                .filter(item -> item % 2 == 0)
+                .map(item -> item * 2);
+
+        TestObserver<Integer> testObserver = new TestObserver<>();
+        transformed.subscribe(testObserver);
+
+        // Проверим, что элементы соответствуют ожиданиям
+        List<Integer> expected = new ArrayList<>();
+        for (int i = 1; i <= 1000; i++) {
+            if ((i + 1) % 2 == 0) {
+                expected.add((i + 1) * 2);
+            }
+        }
+
+        assertEquals(expected, testObserver.receivedItems);
+        assertTrue(testObserver.isCompleted);
+        assertNull(testObserver.error);
+    }
 }
