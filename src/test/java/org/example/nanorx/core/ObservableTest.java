@@ -1,9 +1,13 @@
 package org.example.nanorx.core;
 
+import org.example.nanorx.core.scheduler.ComputationScheduler;
+import org.example.nanorx.core.scheduler.Scheduler;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -231,5 +235,45 @@ class ObservableTest {
         assertEquals(expected, testObserver.receivedItems);
         assertTrue(testObserver.isCompleted);
         assertNull(testObserver.error);
+    }
+
+    @Test
+    void testObserveOn() throws InterruptedException {
+
+        Observable<String> observable = Observable.<String>create(observer -> {
+            observer.onNext("First");
+            observer.onNext("Second");
+            observer.onComplete();
+        }).observeOn(new ComputationScheduler());
+
+        List<Thread> observedThreads = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(3);
+
+        TestObserver<String> testObserver = new TestObserver<>() {
+            @Override
+            public void onNext(String item) {
+                super.onNext(item);
+                observedThreads.add(Thread.currentThread());
+                latch.countDown();
+            }
+
+            @Override
+            public void onComplete() {
+                super.onComplete();
+                latch.countDown();
+            }
+        };
+
+        observable.subscribe(testObserver);
+
+        boolean completed = latch.await(3, TimeUnit.SECONDS);
+
+        assertTrue(completed, "Не все события были обработаны");
+        assertEquals(List.of("First", "Second"), testObserver.receivedItems);
+        assertTrue(testObserver.isCompleted);
+
+        for (Thread thread : observedThreads) {
+            assertFalse(thread.getName().contains("main"), "Ожидалось выполнение не из главного потока");
+        }
     }
 }

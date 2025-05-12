@@ -2,6 +2,8 @@ package org.example.nanorx.core;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.example.nanorx.core.scheduler.Scheduler;
+
 
 public class Observable<T> {
     private final OnSubscribe<T> onSubscribe;
@@ -100,6 +102,27 @@ public void subscribe(Observer<? super T> observer) {
                 })
         );
     }
+
+public Observable<T> observeOn(Scheduler scheduler) {
+    return new Observable<>(observer -> 
+        subscribe(new Observer<T>() {
+            @Override
+            public void onNext(T item) {
+                scheduler.execute(() -> observer.onNext(item));
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                scheduler.execute(() -> observer.onError(throwable));
+            }
+
+            @Override
+            public void onComplete() {
+                scheduler.execute(observer::onComplete);
+            }
+        })
+    );
+}
 
     public interface OnSubscribe<T> {
         void subscribe(Observer<? super T> observer);
